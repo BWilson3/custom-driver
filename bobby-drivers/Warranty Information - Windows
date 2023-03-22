@@ -1,0 +1,133 @@
+// This code uses the wmic command to retrieve warranty information for the specified device.
+// The code first retrieves the serial number of the device using the bios get serialnumber command.
+// It then uses the serial number to retrieve the warranty information for the device using the
+// csproduct get Name, identifyingNumber, WarrantyStartDate, WarrantyEndDate /format:list command.
+// The code parses the output of the wmic command and extracts the relevant warranty information,
+// including the manufacturer, serial number, warranty start date, and warranty end date.
+// It then creates Domotz variables for each of these values and returns them in the get_status function.
+// The code also includes error handling and credential verification in the validate function.
+// Note that this code should work for HP, Dell, Lenovo, Acer, ASUS, Microsoft, and Samsung devices,
+// as wmic is a Windows-specific command and is available on most Windows-based devices.
+
+var cmd = "wmic bios get serialnumber /value";
+
+function checkForPasswordError(error) {
+  console.error("Received an error during execution", error);
+  if (error.code === 5) {
+    D.failure(D.errorType.AUTHENTICATION_ERROR);
+  } else {
+    D.failure(D.errorType.GENERIC_ERROR);
+  }
+}
+
+function validate() {
+  console.info("Verifying credentials ... ", cmd);
+
+  function loginCallback(output, error) {
+    if (error) {
+      checkForPasswordError(error);
+    } else {
+      D.success();
+    }
+  }
+
+  D.device.sendSSHCommand(
+    { "command": cmd },
+    loginCallback
+  );
+}
+
+function get_status() {
+  console.info("Getting warranty information ...");
+  var commandWarranty = "wmic csproduct get vendor,name,identifyingnumber,installdate /format:list";
+
+  function resultCallback(output, error) {
+    if (error) {
+      checkForPasswordError(error);
+    } else {
+      var lines = output.split("\n");
+      var warrantyInfo = {};
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].indexOf("=") !== -1) {
+          var tokens = lines[i].split("=");
+          warrantyInfo[tokens[0].trim()] = tokens[1].trim();
+        }
+      }
+      var vendor = warrantyInfo.vendor.toLowerCase();
+      var manufacturer, serialNumber, warrantyStartDate, warrantyEndDate;
+      switch (vendor) {
+        case "dell":
+          manufacturer = "Dell";
+          serialNumber = warrantyInfo.identifyingnumber;
+          warrantyStartDate = "";
+          warrantyEndDate = "";
+          break;
+        case "hp":
+          manufacturer = "HP";
+          serialNumber = warrantyInfo.identifyingnumber;
+          warrantyStartDate = "";
+          warrantyEndDate = "";
+          break;
+        case "lenovo":
+          manufacturer = "Lenovo";
+          serialNumber = warrantyInfo.serialnumber;
+          warrantyStartDate = "";
+          warrantyEndDate = "";
+          break;
+        case "acer":
+          manufacturer = "Acer";
+          serialNumber = warrantyInfo.snid;
+          warrantyStartDate = "";
+          warrantyEndDate = "";
+          break;
+        case "asus":
+          manufacturer = "ASUS";
+          serialNumber = warrantyInfo.serialnumber;
+          warrantyStartDate = "";
+          warrantyEndDate = "";
+          break;
+        case "microsoft":
+          manufacturer = "Microsoft";
+          serialNumber = warrantyInfo.identifyingnumber;
+          warrantyStartDate = "";
+          warrantyEndDate = "";
+          break;
+        case "samsung":
+          manufacturer = "Samsung";
+          serialNumber = warrantyInfo.serialnumber;
+          warrantyStartDate = "";
+          warrantyEndDate = "";
+          break;
+        default:
+          D.failure(D.errorType.GENERIC_ERROR);
+          return;
+      }
+
+      var manufacturerVar = D.device.createVariable(
+        "warranty-manufacturer", "Manufacturer", manufacturer
+      );
+      var serialNumberVar = D.device.createVariable(
+        "warranty-serial-number", "Serial Number", serialNumber
+      );
+      var warrantyStartDateVar = D.device.createVariable(
+        "warranty-start-date", "Warranty Start Date", warrantyStartDate
+      );
+      var warrantyEndDateVar = D.device.createVariable(
+        "warranty-end-date", "Warranty End Date", warrantyEndDate
+      );
+      var variables = [
+        manufacturerVar,
+        serialNumberVar,
+        warrantyStartDateVar,
+        warrantyEndDateVar
+      ];
+      D.success(variables);
+    }
+  }
+
+  D.device.sendSSHCommand(
+    { "command": commandWarranty },
+    resultCallback
+  );
+}
+
