@@ -1,0 +1,44 @@
+// Note that this code snippet only retrieves basic system information, and does not include warranty
+// information since Apple does not provide a publicly available warranty API.
+
+
+var cmd = "system_profiler SPHardwareDataType | grep -E 'Model Identifier|Serial Number'";
+
+function get_status() {
+    console.info("Getting system information ...");
+
+    function resultCallback(output, error) {
+        variables = [];
+        if (error) {
+            checkForPasswordError(error);
+        } else {
+            var lines = output.split("\n");
+            var systemInfo = {};
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i].indexOf(":") !== -1) {
+                    var tokens = lines[i].split(":");
+                    systemInfo[tokens[0].trim()] = tokens[1].trim();
+                }
+            }
+            var manufacturer = "Apple";
+            var model = systemInfo["Model Identifier"];
+            var serialNumber = systemInfo["Serial Number"];
+            var manufacturerVar = D.device.createVariable(
+                "system-manufacturer", "Manufacturer", manufacturer
+            );
+            var modelVar = D.device.createVariable(
+                "system-model", "Model", model
+            );
+            var serialNumberVar = D.device.createVariable(
+                "system-serial-number", "Serial Number", serialNumber
+            );
+            variables.push(manufacturerVar, modelVar, serialNumberVar);
+            D.success(variables);
+        }
+    }
+
+    D.device.sendSSHCommand(
+        {"command": cmd, "node": D.device.getIPAddress()},
+        resultCallback
+    );
+}
