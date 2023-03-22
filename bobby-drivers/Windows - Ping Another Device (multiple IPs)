@@ -1,0 +1,51 @@
+var latencyUID = "latency-";
+var latencyLabel = "Latency";
+var latencyUnit = "ms";
+var packetLossUID = "packet-loss-";
+var packetLossLabel = "Packet Loss";
+var packetLossUnit = "%";
+
+function get_status() {
+    var variables = [];
+    var outputTableRows = [];
+    for (var i = 0; i < ipAddressList.length; i++) {
+        var ipAddress = ipAddressList[i];
+        console.info("Pinging " + ipAddress + " ... ");
+        var commandPing = "ping -n 10 " + ipAddress;
+        sshCommandOptions["command"] = commandPing;
+        function resultCallback(output, error) {
+            if (error) {
+                checkForPasswordError(error);
+            } else {
+                var matchLatency = /Average = (\d+)ms/.exec(output);
+                var latencyValue = matchLatency ? matchLatency[1] : "N/A";
+                var matchPacketLoss = /Packets: Sent = \d+, Received = \d+, Lost = (\d+)/.exec(output);
+                var packetLossValue = matchPacketLoss ? matchPacketLoss[1] + "%" : "N/A";
+                var latencyVariable = D.device.createVariable(
+                    latencyUID + ipAddress + "-" + new Date().getTime(), latencyLabel, latencyValue, latencyUnit
+                );
+                var packetLossVariable = D.device.createVariable(
+                    packetLossUID + ipAddress + "-" + new Date().getTime(), packetLossLabel, packetLossValue, packetLossUnit
+                );
+                outputTableRows.push({
+                    "ip-address": ipAddress,
+                    "latency": latencyValue,
+                    "packet-loss": packetLossValue,
+                    "last-change": new Date().toISOString()
+                });
+                variables.push(latencyVariable);
+                variables.push(packetLossVariable);
+                if (outputTableRows.length === ipAddressList.length) {
+                    var outputTable = {
+                        "columns": tableColumns,
+                        "rows": outputTableRows
+                    };
+                    D.success(variables, outputTable);
+                }
+            }
+        }
+        D.device.sendSSHCommand(
+            sshCommandOptions, resultCallback
+        );
+    }
+}
