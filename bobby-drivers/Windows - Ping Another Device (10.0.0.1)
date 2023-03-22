@@ -1,0 +1,105 @@
+/** The code snippet is a JavaScript script that pings an IP address and retrieves the average latency and packet loss percentage.
+** It then creates two variables with these values and generates an output table with the IP address, latency, packet loss, 
+** and the current date and time. The script is designed to be run on a device that supports SSH commands.
+*/
+
+// Define the IP address to ping
+var ipAddress = "10.0.0.1";
+
+// Set up the SSH command options
+var sshCommandOptions = {
+    "prompt": "]",
+    "timeout": 10000
+};
+
+// Define the UID, label, and unit for the latency and packet loss variables
+var latencyUID = "latency-";
+var latencyLabel = "Latency";
+var latencyUnit = "ms";
+var packetLossUID = "packet-loss-";
+var packetLossLabel = "Packet Loss";
+var packetLossUnit = "%";
+
+// Define the columns for the output table
+var tableColumns = [
+    { "id": "ip-address", "name": "IP Address" },
+    { "id": "latency", "name": "Latency" },
+    { "id": "packet-loss", "name": "Packet Loss" },
+    { "id": "last-change", "name": "Last Change" }
+];
+
+// A function to check for authentication errors during execution
+function checkForPasswordError(error) {
+    console.error("Received an error during execution", error);
+    if (error.code === 5) {
+        D.failure(D.errorType.AUTHENTICATION_ERROR);
+    } else {
+        D.failure(D.errorType.GENERIC_ERROR);
+    }
+}
+
+// A function to validate credentials before running the main function
+function validate() {
+    var commandValidate = "dir";
+    console.info("Verifying credentials ... ", commandValidate);
+    function loginCallback(output, error) {
+        variables = [];
+        if (error) {
+            checkForPasswordError(error);
+        } else {
+            D.success();
+        }
+    }
+    sshCommandOptions["command"] = commandValidate;
+    D.device.sendSSHCommand(
+        sshCommandOptions, loginCallback
+    );
+}
+
+// The main function to ping the IP address and create variables and an output table
+function get_status() {
+    console.info("Pinging " + ipAddress + " ... ");
+    var commandPing = "ping -n 10 " + ipAddress;
+    sshCommandOptions["command"] = commandPing;
+    function resultCallback(output, error) {
+        var variables = [];
+        if (error) {
+            checkForPasswordError(error);
+        } else {
+            // Parse the output to get the latency and packet loss
+            var matchLatency = /Average = (\d+)ms/.exec(output);
+            var latencyValue = matchLatency ? matchLatency[1] : "N/A";
+            var matchPacketLoss = /Packets: Sent = \d+, Received = \d+, Lost = (\d+)/.exec(output);
+            var packetLossValue = matchPacketLoss ? matchPacketLoss[1] + "%" : "N/A";
+
+            // Create the latency and packet loss variables
+            var latencyVariable = D.device.createVariable(
+                latencyUID, latencyLabel, latencyValue, latencyUnit
+            );
+            var packetLossVariable = D.device.createVariable(
+                packetLossUID, packetLossLabel, packetLossValue, packetLossUnit
+            );
+
+            // Create the output table
+            var outputTable = {
+                "columns": tableColumns,
+                "rows": [
+                    {
+                        "ip-address": ipAddress,
+                        "latency": latencyValue,
+                        "packet-loss": packetLossValue,
+                        "last-change": new Date().toISOString()
+                    }
+                ]
+            };
+
+            variables.push(latencyVariable);
+            variables.push(packetLossVariable);
+            D.success(variables, outputTable);
+        }
+    }
+    D.device.sendSSHCommand(
+        sshCommandOptions, resultCallback
+    );
+}
+
